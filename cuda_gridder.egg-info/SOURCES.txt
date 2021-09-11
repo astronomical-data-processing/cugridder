@@ -1,0 +1,8 @@
+README.md
+setup.py
+cuda_gridder.egg-info/PKG-INFO
+cuda_gridder.egg-info/SOURCES.txt
+cuda_gridder.egg-info/dependency_links.txt
+cuda_gridder.egg-info/requires.txt
+cuda_gridder.egg-info/top_level.txt
+src/cudagridder.cc
