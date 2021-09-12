@@ -27,6 +27,70 @@ namespace
     template <typename T>
     using pyarr = py::array_t<T, 0>;
 
+#if defined(__GNUC__)
+#define LOC_ CodeLocation(__FILE__, __LINE__, __PRETTY_FUNCTION__)
+#else
+#define LOC_ CodeLocation(__FILE__, __LINE__)
+#endif
+
+#define myfail(...)                                        \
+    do                                                     \
+    {                                                      \
+        std::ostringstream os;                             \
+        streamDump__(os, LOC_, "\n", ##__VA_ARGS__, "\n"); \
+        throw std::runtime_error(os.str());                \
+    } while (0)
+
+#define myassert(cond, ...)                               \
+    do                                                    \
+    {                                                     \
+        if (cond)                                         \
+            ;                                             \
+        else                                              \
+        {                                                 \
+            myfail("Assertion failure\n", ##__VA_ARGS__); \
+        }                                                 \
+    } while (0)
+
+    template <typename T>
+    inline void streamDump__(std::ostream &os, const T &value)
+    {
+        os << value;
+    }
+
+    template <typename T, typename... Args>
+    inline void streamDump__(std::ostream &os, const T &value,
+                             const Args &...args)
+    {
+        os << value;
+        streamDump__(os, args...);
+    }
+
+    // to be replaced with std::source_location once available
+    class CodeLocation
+    {
+    private:
+        const char *file, *func;
+        int line;
+
+    public:
+        CodeLocation(const char *file_, int line_, const char *func_ = nullptr)
+            : file(file_), func(func_), line(line_) {}
+
+        ostream &print(ostream &os) const
+        {
+            os << "file: " << file << ", line: " << line;
+            if (func)
+                os << ", function: " << func;
+            return os;
+        }
+    };
+
+    inline std::ostream &operator<<(std::ostream &os, const CodeLocation &loc)
+    {
+        return loc.print(os);
+    }
+
     template <typename T>
     bool isPytype(const py::array &arr)
     {
@@ -47,9 +111,9 @@ namespace
         auto k2 = t2.kind();
         auto s1 = t1.itemsize();
         auto s2 = t2.itemsize();
-        // myassert((k1 == k2) && (s1 == s2),
-        //          "type mismatch for array '", name, "': expected '", k2, s2,
-        //          "', but got '", k1, s1, "'.");
+        myassert((k1 == k2) && (s1 == s2),
+                 "type mismatch for array '", name, "': expected '", k2, s2,
+                 "', but got '", k1, s1, "'.");
         return arr.cast<pyarr<T>>();
     }
 
@@ -108,28 +172,28 @@ namespace
     template <size_t ndim, typename T>
     mav<T, ndim> make_mav(pyarr<T> &in)
     {
-        // myassert(ndim == in.ndim(), "dimension mismatch");
+        myassert(ndim == in.ndim(), "dimension mismatch");
         array<size_t, ndim> dims;
         array<ptrdiff_t, ndim> str;
         for (size_t i = 0; i < ndim; ++i)
         {
             dims[i] = in.shape(i);
             str[i] = in.strides(i) / sizeof(T);
-            // myassert(str[i] * ptrdiff_t(sizeof(T)) == in.strides(i), "weird strides");
+            myassert(str[i] * ptrdiff_t(sizeof(T)) == in.strides(i), "weird strides");
         }
         return mav<T, ndim>(in.mutable_data(), dims, str);
     }
     template <size_t ndim, typename T>
     const_mav<T, ndim> make_const_mav(const pyarr<T> &in)
     {
-        // myassert(ndim == in.ndim(), "dimension mismatch");
+        myassert(ndim == in.ndim(), "dimension mismatch");
         array<size_t, ndim> dims;
         array<ptrdiff_t, ndim> str;
         for (size_t i = 0; i < ndim; ++i)
         {
             dims[i] = in.shape(i);
             str[i] = in.strides(i) / sizeof(T);
-            // myassert(str[i] * ptrdiff_t(sizeof(T)) == in.strides(i), "weird strides");
+            myassert(str[i] * ptrdiff_t(sizeof(T)) == in.strides(i), "weird strides");
         }
         return const_mav<T, ndim>(in.data(), dims, str);
     }
@@ -169,7 +233,7 @@ namespace
         if (isPytype<complex<double>>(ms))
             return ms2dirty_general2<double>(uvw, freq, ms, wgt, npix_x, npix_y,
                                              pixsize_x, pixsize_y, nu, nv, epsilon, do_wstacking, nthreads, verbosity);
-        // myfail("type matching failed: 'ms' has neither type 'c8' nor 'c16'");
+        myfail("type matching failed: 'ms' has neither type 'c8' nor 'c16'");
     }
     constexpr auto ms2dirty_DS = R"""(
 Converts an MS object to dirty image.
@@ -252,7 +316,7 @@ np.array((nxdirty, nydirty), dtype=float of same precision as `ms`)
         if (isPytype<double>(dirty))
             return dirty2ms_general2<double>(uvw, freq, dirty, wgt,
                                              pixsize_x, pixsize_y, nu, nv, epsilon, do_wstacking, nthreads, verbosity);
-        // myfail("type matching failed: 'dirty' has neither type 'f4' nor 'f8'");
+        myfail("type matching failed: 'dirty' has neither type 'f4' nor 'f8'");
     }
     constexpr auto dirty2ms_DS = R"""(
 Converts a dirty image to an MS object.
